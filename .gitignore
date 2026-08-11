@@ -1,0 +1,25 @@
+# Build output
+build/
+__pycache__/
+*.pyc
+
+# Editor / assistant scratch
+.cursor/
+.claude/
+
+# --- Third-party code that must NOT be redistributed from this repository ---
+# The Spine Runtimes are licensed by Esoteric Software. Integrating them
+# requires your own Spine Editor license; this repo ships only the patches
+# against them. Run scripts/fetch-third-party.sh to obtain them locally.
+third_party/spine-runtimes/
+third_party/spine-gl/
+
+# --- Wallpaper content ---
+# Workshop items belong to their authors. Nothing from an item (skeletons,
+# atlases, textures, audio, generated profiles) is part of this project.
+assets/
+*.skel
+*.atlas
+*.ogg
+kei-profile.conf
+*.local.conf

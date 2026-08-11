@@ -1,0 +1,15 @@
+--- spine-runtimes/spine-glfw/src/spine-glfw.h	2026-07-30 17:08:27.154569767 +0900
++++ spine-gl/spine-glfw.h	2026-07-30 18:06:14.988320647 +0900
+@@ -80,8 +80,10 @@
+ /// A texture (the OpenGL texture object id)
+ typedef unsigned int texture_t;
+ 
+-/// Loads the given image and creates an OpenGL texture with default settings and auto-generated mipmap levels
+-texture_t texture_load(const char *file_path);
++/// Loads the given image and creates an OpenGL texture. min_filter/mag_filter are GL enums;
++/// pass the values the .atlas asked for so we match the reference renderer instead of
++/// silently forcing mipmaps.
++texture_t texture_load(const char *file_path, unsigned int min_filter, unsigned int mag_filter);
+ 
+ /// Binds the texture to texture unit 0
+ void texture_use(texture_t texture);

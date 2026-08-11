@@ -1,0 +1,177 @@
+--- spine-runtimes/spine-glfw/src/spine-glfw.cpp	2026-07-30 17:08:27.154382327 +0900
++++ spine-gl/spine-glfw.cpp	2026-07-30 18:13:39.453915399 +0900
+@@ -29,11 +29,10 @@
+ 
+ #include "spine-glfw.h"
+ #include <cstdio>
+-#include <glbinding/gl/gl.h>
++#include <GL/glew.h>
+ #define STB_IMAGE_IMPLEMENTATION
+ #include "stb_image.h"
+ 
+-using namespace gl;
+ using namespace spine;
+ 
+ /// Set the default extension used for memory allocations and file I/O
+@@ -193,32 +192,31 @@
+ 	glDeleteProgram(program);
+ }
+ 
+-texture_t texture_load(const char *file_path) {
++static bool filter_needs_mipmap(unsigned int filter) {
++	return filter == GL_NEAREST_MIPMAP_NEAREST || filter == GL_LINEAR_MIPMAP_NEAREST ||
++		   filter == GL_NEAREST_MIPMAP_LINEAR || filter == GL_LINEAR_MIPMAP_LINEAR;
++}
++
++texture_t texture_load(const char *file_path, unsigned int min_filter, unsigned int mag_filter) {
+ 	int width, height, nrChannels;
+-	unsigned char *data = stbi_load(file_path, &width, &height, &nrChannels, 0);
++	// Force RGBA — RGB atlases without alpha channel break Spine blending badly.
++	unsigned char *data = stbi_load(file_path, &width, &height, &nrChannels, 4);
+ 	if (!data) {
+-		printf("Failed to load texture\n");
++		printf("Failed to load texture: %s\n", file_path);
+ 		return 0;
+ 	}
+ 
+-	GLenum format = GL_RGBA;
+-	if (nrChannels == 1)
+-		format = GL_RED;
+-	else if (nrChannels == 3)
+-		format = GL_RGB;
+-	else if (nrChannels == 4)
+-		format = GL_RGBA;
+-
+ 	texture_t texture;
+ 	glGenTextures(1, &texture);
+ 	glBindTexture(GL_TEXTURE_2D, texture);
+-	glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+-	glGenerateMipmap(GL_TEXTURE_2D);
++	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
++	if (filter_needs_mipmap(min_filter))
++		glGenerateMipmap(GL_TEXTURE_2D);
+ 
+ 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+ 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
++	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, (GLint) min_filter);
++	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, (GLint) mag_filter);
+ 
+ 	stbi_image_free(data);
+ 	return texture;
+@@ -252,8 +250,29 @@
+ 	matrix[15] = 1.0f;
+ }
+ 
++static unsigned int gl_filter(spine::TextureFilter filter, bool isMinFilter) {
++	switch (filter) {
++		case spine::TextureFilter_Nearest: return GL_NEAREST;
++		case spine::TextureFilter_Linear: return GL_LINEAR;
++		case spine::TextureFilter_MipMap:
++		case spine::TextureFilter_MipMapLinearLinear: return isMinFilter ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR;
++		case spine::TextureFilter_MipMapNearestNearest: return isMinFilter ? GL_NEAREST_MIPMAP_NEAREST : GL_NEAREST;
++		case spine::TextureFilter_MipMapLinearNearest: return isMinFilter ? GL_LINEAR_MIPMAP_NEAREST : GL_LINEAR;
++		case spine::TextureFilter_MipMapNearestLinear: return isMinFilter ? GL_NEAREST_MIPMAP_LINEAR : GL_NEAREST;
++		default: return GL_LINEAR;
++	}
++}
++
+ void GlTextureLoader::load(spine::AtlasPage &page, const spine::String &path) {
+-	page.texture = (void *) (uintptr_t) texture_load(path.buffer());
++	// Honour the filters the .atlas declares. Kei's atlas says "Linear, Linear" (no
++	// mipmaps); forcing mipmaps here diverges from the reference WebGL renderer.
++	texture_t tex = texture_load(path.buffer(), gl_filter(page.minFilter, true), gl_filter(page.magFilter, false));
++	if (!tex)
++		fprintf(stderr, "atlas load FAILED: %s\n", path.buffer());
++	else if (getenv("KEI_DEBUG_BLEND"))
++		fprintf(stderr, "atlas page tex=%u min=%d mag=%d %dx%d %s\n", tex, (int) page.minFilter,
++				(int) page.magFilter, page.width, page.height, path.buffer());
++	page.texture = (void *) (uintptr_t) tex;
+ }
+ 
+ void GlTextureLoader::unload(void *texture) {
+@@ -290,10 +309,13 @@
+ 
+         uniform sampler2D uTexture;
+         void main() {
++            // Two-color tint, byte-for-byte the spine-webgl newTwoColoredTextured
++            // formula. Kei's skeleton uses tint black on a lot of slots; dropping
++            // darkColor here flattens the whole scene.
+             vec4 texColor = texture(uTexture, texCoord);
+-            float alpha = texColor.a * lightColor.a;
+-            fragColor.a = alpha;
+-            fragColor.rgb = ((texColor.a - 1.0) * darkColor.a + 1.0 - texColor.rgb) * darkColor.rgb + texColor.rgb * lightColor.rgb;
++            fragColor.a = texColor.a * lightColor.a;
++            fragColor.rgb = ((texColor.a - 1.0) * darkColor.a + 1.0 - texColor.rgb) * darkColor.rgb
++                          + texColor.rgb * lightColor.rgb;
+         }
+     )");
+ 	if (!shader) return nullptr;
+@@ -324,6 +346,32 @@
+ 	glEnable(GL_BLEND);
+ 
+ 	RenderCommand *command = renderer->renderer->render(*skeleton);
++
++	// KEI_DEBUG_BLEND=1 dumps a one-shot census of what the skeleton actually asks
++	// for, so blend/tint regressions can be diagnosed without guessing.
++	static bool censusDone = false;
++	if (!censusDone && getenv("KEI_DEBUG_BLEND")) {
++		censusDone = true;
++		int perMode[4] = {0, 0, 0, 0};
++		int tinted = 0, total = 0;
++		for (RenderCommand *c = command; c; c = c->next) {
++			total++;
++			if (c->blendMode >= 0 && c->blendMode < 4) perMode[c->blendMode]++;
++			if ((c->darkColors[0] & 0x00FFFFFF) != 0) tinted++;
++			float minx = c->positions[0], maxx = minx, miny = c->positions[1], maxy = miny;
++			for (int i = 0; i < c->numVertices; i++) {
++				minx = fminf(minx, c->positions[i * 2]);
++				maxx = fmaxf(maxx, c->positions[i * 2]);
++				miny = fminf(miny, c->positions[i * 2 + 1]);
++				maxy = fmaxf(maxy, c->positions[i * 2 + 1]);
++			}
++			fprintf(stderr, "  cmd %2d blend=%d tex=%u verts=%d color=%08x dark=%08x xy=[%.0f..%.0f, %.0f..%.0f]\n",
++					total - 1, c->blendMode, (unsigned) (uintptr_t) c->texture, c->numVertices,
++					c->colors[0], c->darkColors[0], minx, maxx, miny, maxy);
++		}
++		fprintf(stderr, "blend census: commands=%d normal=%d additive=%d multiply=%d screen=%d darkTinted=%d\n",
++				total, perMode[0], perMode[1], perMode[2], perMode[3], tinted);
++	}
+ 	while (command) {
+ 		int num_command_vertices = command->numVertices;
+ 		if (renderer->vertex_buffer_size < num_command_vertices) {
+@@ -342,16 +390,30 @@
+ 			vertex->u = uvs[j];
+ 			vertex->v = uvs[j + 1];
+ 			uint32_t color = colors[i];
++			// Spine packs 0xAARRGGBB; on LE this is already B,G,R,A in memory which
++			// GL_RGBA reads wrong. Swizzle to R,G,B,A bytes.
+ 			vertex->color = (color & 0xFF00FF00) | ((color & 0x00FF0000) >> 16) | ((color & 0x000000FF) << 16);
+ 			uint32_t darkColor = darkColors[i];
+-			vertex->darkColor = (darkColor & 0xFF00FF00) | ((darkColor & 0x00FF0000) >> 16) | ((darkColor & 0x000000FF) << 16);
++			vertex->darkColor = (darkColor & 0x0000FF00) | ((darkColor & 0x00FF0000) >> 16) | ((darkColor & 0x000000FF) << 16);
++			// spine-cpp hardcodes dark alpha to 0xff (the PMA convention). spine-webgl
++			// uses darkColor.a = premultipliedAlpha ? 1 : 0, so mirror that here.
++			if (premultipliedAlpha)
++				vertex->darkColor |= 0xFF000000u;
+ 		}
+ 		int num_command_indices = command->numIndices;
+ 		uint16_t *indices = command->indices;
+ 		mesh_update(renderer->mesh, renderer->vertex_buffer, num_command_vertices, indices, num_command_indices);
+ 
+-		blend_mode_t blend_mode = blend_modes[command->blendMode];
+-		glBlendFuncSeparate(premultipliedAlpha ? (GLenum) blend_mode.source_color_pma : (GLenum) blend_mode.source_color, (GLenum) blend_mode.dest_color, (GLenum) blend_mode.source_alpha, (GLenum) blend_mode.dest_color);
++		// Per-slot blend mode, same mapping as spine-webgl's PolygonBatcher.setBlendMode.
++		// Forcing every slot to Normal turns the Multiply shading layers into a milky
++		// wash over the whole scene.
++		// KEI_FORCE_NORMAL_BLEND=1 reproduces the old broken path for A/B shots.
++		static const bool forceNormal = getenv("KEI_FORCE_NORMAL_BLEND") != nullptr;
++		blend_mode_t blend_mode = blend_modes[forceNormal ? 0 : command->blendMode];
++		const GLenum source_color = premultipliedAlpha ? (GLenum) blend_mode.source_color_pma
++													   : (GLenum) blend_mode.source_color;
++		glBlendFuncSeparate(source_color, (GLenum) blend_mode.dest_color,
++							(GLenum) blend_mode.source_alpha, (GLenum) blend_mode.dest_color);
+ 
+ 		auto texture = (texture_t) (uintptr_t) command->texture;
+ 		texture_use(texture);
