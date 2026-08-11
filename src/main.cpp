@@ -2710,8 +2710,8 @@ static void frameDone(void* data, wl_callback* cb, uint32_t /*time*/) {
 
 static void usage(const char* argv0) {
 	std::fprintf(stderr,
-				 "usage: %s [--output NAME] [--assets DIR] [--fps N]\n"
-				 "       %s --shot FILE.ppm [--size WxH] [--shot-time SECONDS]\n"
+				 "usage: %s --assets DIR [--output NAME] [--fps N]\n"
+				 "       %s --assets DIR --shot FILE.ppm [--size WxH] [--shot-time SECONDS]\n"
 				 "  --shot renders one frame offscreen (no layer surface, nothing on screen)\n"
 				 "  --hitbox-debug   draw all interaction zones (also KEI_DRAW_HITBOX=1)\n"
 				 "  --no-cursor-fx   turn off the item's click fireworks\n"
@@ -2720,7 +2720,8 @@ static void usage(const char* argv0) {
 				 "  --control FILE   live audio/debug control file\n"
 				 "  --auto-idle      let her move on her own between interactions\n"
 				 "  KEI_TRACE_INPUT=1 log every press/release with its hitbox coords\n"
-				 "  default assets: ~/.steam/.../3650880224/assets/4k\n",
+				 "  --assets is required; it must be a wallpaper you own, e.g.\n"
+				 "  ~/.steam/.../workshop/content/431960/<item id>/assets/4k\n",
 				 argv0, argv0);
 }
 
@@ -2933,9 +2934,9 @@ static int runShot(const std::string& assets, const std::string& path, int w, in
 }
 
 int main(int argc, char** argv) {
-	std::string assets =
-		std::string(getenv("HOME") ? getenv("HOME") : "") +
-		"/.steam/steam/steamapps/workshop/content/431960/3650880224/assets/4k";
+	// No default: this host does not ship or point at any specific wallpaper.
+	// --assets must name a directory the user already owns.
+	std::string assets;
 	std::string profilePath;
 	bool scaleFromCli = false;
 	std::string shotPath;
@@ -2975,6 +2976,11 @@ int main(int argc, char** argv) {
 			usage(argv[0]);
 			return 0;
 		}
+	}
+	if (assets.empty()) {
+		std::fprintf(stderr, "error: --assets DIR is required (a wallpaper you own)\n\n");
+		usage(argv[0]);
+		return 1;
 	}
 	if (getenv("KEI_DRAW_HITBOX"))
 		g.drawHitbox = true;

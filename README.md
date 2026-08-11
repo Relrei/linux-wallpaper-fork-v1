@@ -76,8 +76,8 @@ names, voiceline timings, BGM file, design space, scale) lives in a profile.
 
 ```bash
 python3 scripts/make-profile.py            # all Spine items in the workshop dir
-python3 scripts/make-profile.py --stdout 3650874083
-KEI_WALLPAPER=3650874083 scripts/start-kei-wallpaper.sh DP-1
+python3 scripts/make-profile.py --stdout <workshop id>
+KEI_WALLPAPER=<workshop id> scripts/start-kei-wallpaper.sh DP-1
 ```
 
 `make-profile.py` reads each item's own `js/main.js` — `HITBOX`, `CHARACTER`,
@@ -234,9 +234,11 @@ Debug env vars:
 
 ## Assets
 
-Default: `~/.steam/steam/steamapps/workshop/content/431960/3650880224/assets/4k`
-
-Override with `--assets DIR` or `KEI_ASSETS`.
+`--assets DIR` is required — there is no default, and no item ships with this
+repository. `DIR` is a resolution folder inside a Workshop item you own, e.g.
+`~/.steam/steam/steamapps/workshop/content/431960/<item id>/assets/4k`.
+`scripts/start-kei-wallpaper.sh` builds this path from `KEI_WALLPAPER` /
+`KEI_ASSETS` for you.
 
 ## Render contract — must match `js/main.js` + spine-webgl 4.2
 
