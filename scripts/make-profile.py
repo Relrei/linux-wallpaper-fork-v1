@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Generate a kei-wallpaper-host profile from a Wallpaper Engine Spine item.
 
-Every one of these Blue Archive wallpapers ships the same `js/main.js` with its
-own HITBOX rects, CHARACTER id and AUDIO_DETAIL table, so the per-character data
-the host needs is already on disk — reading it beats transcribing it by hand.
+Every Spine-based Workshop item ships its own `js/main.js` with its own HITBOX
+rects, CHARACTER id and AUDIO_DETAIL table, so the per-item data the host needs
+is already on disk — reading it beats transcribing it by hand.
 
     make-profile.py                 # every Spine item in the workshop dir
     make-profile.py <workshop id> ...  # only these ids
