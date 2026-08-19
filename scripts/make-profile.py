@@ -168,6 +168,18 @@ def profile_for(item: Path) -> str | None:
     # Talk animations are numbered per line; the host substitutes the index.
     out.append("anim.talk=" + ("Talk_0%d_M" if has_anim("Talk_01_M") else ""))
     out.append("anim.talkA=" + ("Talk_0%d_A" if has_anim("Talk_01_A") else ""))
+    # Upstream drives both follow motions through bones it looks up by name
+    # (`findBone('Touch_Point')` for the head pat, `findBone('Touch_Eye')` for
+    # the gaze). Omitting them from the profile is not inert: the host then
+    # calls findBone("") and gets null, so a press still plays its animation
+    # while nothing follows the cursor -- the failure reads as "touch only".
+    for bone in re.findall(r"""findBone\(\s*['"]([^'"]+)['"]\s*\)""", js):
+        if bone.encode() not in skel:
+            continue
+        if "Point" in bone:
+            out.append(f"bone.point={bone}")
+        elif "Eye" in bone:
+            out.append(f"bone.eye={bone}")
     if b"HandFollow" in skel:
         out.append("bone.handFollow=HandFollow")
         # A bounded target offset, not a cursor attachment. At the default
