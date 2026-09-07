@@ -80,6 +80,80 @@ Fallback to patched LWE:
 WALLPAPER_MODE=lwe ./scripts/start-wallpaper.sh DP-1
 ```
 
+## Steam integration
+
+There is no Steam integration in the API sense: this host never links
+`steam_api`, never starts Steam, and never talks to the Workshop. It reads the
+directory Steam has already written, so it works with Steam closed and with the
+network down.
+
+### Where items live
+
+```
+~/.steam/steam/steamapps/workshop/content/431960/<workshop id>/
+├── project.json          # title, type, and the property defaults (scale, bgmfile)
+├── js/main.js            # the item's own HITBOX / CHARACTER / AUDIO_DETAIL
+└── assets/
+    ├── 4k/<name>.skel    # + .atlas + .png  (2k/4k/8k are common)
+    └── audio/*.ogg       # voicelines and BGM
+```
+
+`431960` is Wallpaper Engine's appid. Some installs put the tree under
+`~/.local/share/Steam/...` or on a second library drive instead; pass
+`--workshop DIR` to the scripts and `--assets DIR` to the host if yours differs.
+
+### Which items this host can run
+
+**Spine items only.** Wallpaper Engine's `type` field is `video`, `scene` or
+`web`, and only a subset of the `web` ones are Spine-rigged. The test this
+project uses is on-disk, not by name: a `.skel` with a matching `.atlas` under
+`assets/`, plus a `js/main.js` to read the per-item numbers out of.
+
+```bash
+python3 scripts/list-spine-items.py          # what is installed and runnable
+python3 scripts/list-spine-items.py --all    # everything, with a reason per skip
+```
+
+`video`, `scene` and non-Spine `web` items are out of scope here — a video
+wallpaper needs a decoder and a scene needs Wallpaper Engine's own scene
+graph. For those, use upstream
+[linux-wallpaperengine](https://github.com/Almamu/linux-wallpaperengine)
+(GPL-3.0); `WALLPAPER_MODE=lwe scripts/start-wallpaper.sh` hands over to it.
+
+### From a subscribed item to a running wallpaper
+
+```bash
+python3 scripts/list-spine-items.py                # 1. find the id
+python3 scripts/make-profile.py                    # 2. profile every Spine item
+LWF_WALLPAPER=<workshop id> scripts/start-wallpaper.sh DP-1   # 3. run it
+```
+
+Step 2 writes `~/.config/linux-wallpaper-fork/profiles/<id>.conf` by reading the
+item's own `js/main.js` and probing its `.skel`; see
+[docs/PROFILE_FORMAT.md](docs/PROFILE_FORMAT.md). Step 3 is equivalent to
+
+```bash
+./build/linux-wallpaper-fork --output DP-1 \
+  --assets ~/.steam/steam/steamapps/workshop/content/431960/<id>/assets/4k
+```
+
+To check an item without touching the desktop, take an offscreen shot instead:
+
+```bash
+./build/linux-wallpaper-fork --shot /tmp/x.ppm --size 960x540 --shot-time 2.0 \
+  --assets .../<id>/assets/4k
+```
+
+`scripts/verify-generic.sh` does exactly that for every profiled item at once.
+
+### What this project will not do
+
+Items are yours, not ours. This repository ships no skeleton, atlas, texture,
+audio clip or profile for any item, and the tooling only ever reads items that
+are already installed under your own Steam account. Do not run it against
+content you do not own, and do not redistribute an item — or a profile
+generated from one — with this host. See [NOTICE.md](NOTICE.md).
+
 ## Other wallpapers (profiles)
 
 The host is generic; everything per-character (hitboxes, animation names, bone
