@@ -467,11 +467,11 @@ struct App {
 	int presentCount = 0;
 	std::chrono::steady_clock::time_point presentWindowStart {};
 
-	// KEI_TRACE_FRAME=1: break down only the frames past the threshold. A hitch
+	// LWF_TRACE_FRAME=1: break down only the frames past the threshold. A hitch
 	// on the first click never shows up in an average fps, so look per frame.
 	bool traceFrame = false;
 	double traceFrameMs = 8.0;
-	// Verbose cursor-fx log. Folding it into KEI_TRACE_INPUT buries the presses.
+	// Verbose cursor-fx log. Folding it into LWF_TRACE_INPUT buries the presses.
 	bool traceFx = false;
 	double nextPointerTraceAt = 0;
 };
@@ -1644,7 +1644,7 @@ static bool loadSpine(App& a, const std::string& assetDir) {
 		return false;
 	}
 	a.skeleton = new Skeleton(a.skeletonData);
-	if (getenv("KEI_DEBUG_BONES")) {
+	if (getenv("LWF_DEBUG_BONES")) {
 		Vector<BoneData*>& bones = a.skeletonData->getBones();
 		for (size_t i = 0; i < bones.size(); ++i) {
 			BoneData* bone = bones[i];
@@ -1704,7 +1704,7 @@ static bool loadSpine(App& a, const std::string& assetDir) {
 	if (!a.profile.handFollowBone.empty() && !a.handFollowTarget)
 		std::fprintf(stderr, "profile: hand-follow bone '%s' not in skeleton\n",
 					 a.profile.handFollowBone.c_str());
-	if (getenv("KEI_DEBUG_ANIMS")) {
+	if (getenv("LWF_DEBUG_ANIMS")) {
 		Vector<Animation*>& anims = a.skeletonData->getAnimations();
 		for (size_t i = 0; i < anims.size(); ++i)
 			std::fprintf(stderr, "anim %-18s %.3fs\n", anims[i]->getName().buffer(), anims[i]->getDuration());
@@ -2638,8 +2638,8 @@ static void applyShotEvent(App& a, const ShotEvent& e, double now) {
 	}
 }
 
-// KEI_LIVE_SCRIPT replays the same script format on the *live* layer surface
-// (same syntax as KEI_SHOT_SCRIPT, times are seconds after the first frame).
+// LWF_LIVE_SCRIPT replays the same script format on the *live* layer surface
+// (same syntax as LWF_SHOT_SCRIPT, times are seconds after the first frame).
 // Offscreen shots miss anything that only happens with a real window — the
 // first-click hitch is exactly that kind of bug, so it needs a repro that keeps
 // the compositor, EGL surface and swap chain in the loop.
@@ -2713,13 +2713,13 @@ static void usage(const char* argv0) {
 				 "usage: %s --assets DIR [--output NAME] [--fps N]\n"
 				 "       %s --assets DIR --shot FILE.ppm [--size WxH] [--shot-time SECONDS]\n"
 				 "  --shot renders one frame offscreen (no layer surface, nothing on screen)\n"
-				 "  --hitbox-debug   draw all interaction zones (also KEI_DRAW_HITBOX=1)\n"
+				 "  --hitbox-debug   draw all interaction zones (also LWF_DRAW_HITBOX=1)\n"
 				 "  --no-cursor-fx   turn off the item's click fireworks\n"
 				 "  --voice-volume V voiceline audio 0..1 (default 0.5, 0 = silent)\n"
 				 "  --bgm-volume V   looping the item's configured BGM at 0..1 (default 0 = off)\n"
 				 "  --control FILE   live audio/debug control file\n"
 				 "  --auto-idle      let her move on her own between interactions\n"
-				 "  KEI_TRACE_INPUT=1 log every press/release with its hitbox coords\n"
+				 "  LWF_TRACE_INPUT=1 log every press/release with its hitbox coords\n"
 				 "  --assets is required; it must be a wallpaper you own, e.g.\n"
 				 "  ~/.steam/.../workshop/content/431960/<item id>/assets/4k\n",
 				 argv0, argv0);
@@ -2783,11 +2783,11 @@ static int runShot(const std::string& assets, const std::string& path, int w, in
 		return 1;
 	setCamera(g);
 
-	// KEI_DEBUG_PHYSICS=1 lists the physics constraints (spine 4.2 catches up
+	// LWF_DEBUG_PHYSICS=1 lists the physics constraints (spine 4.2 catches up
 	// `skeleton.time - constraint.lastTime` in fixed `step` increments, and it
 	// only advances lastTime while mix > 0 — so a constraint that idles at mix 0
 	// pays for every second it was off the moment an animation turns it back on).
-	const bool debugPhysics = getenv("KEI_DEBUG_PHYSICS") != nullptr;
+	const bool debugPhysics = getenv("LWF_DEBUG_PHYSICS") != nullptr;
 	if (debugPhysics) {
 		auto& pcs = g.skeleton->getPhysicsConstraints();
 		std::fprintf(stderr, "physics: %d constraints\n", (int)pcs.size());
@@ -2797,10 +2797,10 @@ static int runShot(const std::string& assets, const std::string& path, int w, in
 						 pcs[i]->getData().getStep(), pcs[i]->getMix(),
 						 pcs[i]->getData().getMix());
 	}
-	// KEI_TEST_TIME_JUMP=SEC[:AT] fast-forwards skeleton time by SEC at shot time
+	// LWF_TEST_TIME_JUMP=SEC[:AT] fast-forwards skeleton time by SEC at shot time
 	// AT (default 1.0) to stand in for hours of idle without simulating them.
 	double jumpSec = 0.0, jumpAt = 1.0;
-	if (const char* v = getenv("KEI_TEST_TIME_JUMP")) {
+	if (const char* v = getenv("LWF_TEST_TIME_JUMP")) {
 		jumpSec = atof(v);
 		if (const char* c = strchr(v, ':'))
 			jumpAt = atof(c + 1);
@@ -2808,24 +2808,24 @@ static int runShot(const std::string& assets, const std::string& path, int w, in
 	bool jumped = false;
 
 	// Lets a shot judge an interaction pose (e.g. the held pinch) rather than idle.
-	if (const char* anim = getenv("KEI_SHOT_ANIM"))
+	if (const char* anim = getenv("LWF_SHOT_ANIM"))
 		setAnim(g, 1, anim, false);
 
-	// KEI_SHOT_SCRIPT replays a gesture offscreen through the *live* input
+	// LWF_SHOT_SCRIPT replays a gesture offscreen through the *live* input
 	// handlers, so what a shot shows is what the wallpaper does — guessing which
 	// animation calls a gesture makes is how the pinch/pat bugs stayed hidden.
 	// Format: ';'-separated "TIME:EVENT[:ARG]" where EVENT is
 	//   press:X,Y | move:X,Y | release | anim:TRACK,NAME
 	// X,Y are screen pixels for this shot size.
 	std::vector<ShotEvent> script;
-	if (const char* spec = getenv("KEI_SHOT_SCRIPT"))
+	if (const char* spec = getenv("LWF_SHOT_SCRIPT"))
 		script = parseShotScript(spec);
 
 	// One process renders the whole series: --shot-series DIR turns `path` into
 	// DIR/f%04d.ppm sampled at --shot-fps, which is what makes frame-by-frame
 	// inspection cheap enough to actually do.
-	const char* seriesDir = getenv("KEI_SHOT_SERIES");
-	const double seriesFps = getenv("KEI_SHOT_FPS") ? atof(getenv("KEI_SHOT_FPS")) : 10.0;
+	const char* seriesDir = getenv("LWF_SHOT_SERIES");
+	const double seriesFps = getenv("LWF_SHOT_FPS") ? atof(getenv("LWF_SHOT_FPS")) : 10.0;
 	int seriesIndex = 0;
 	double nextCapture = seriesDir ? 0.0 : seconds;
 
@@ -2855,8 +2855,8 @@ static int runShot(const std::string& assets, const std::string& path, int w, in
 			g.skeleton->setTime(g.skeleton->getTime() + (float)jumpSec);
 			std::fprintf(stderr, "test: skeleton time += %.0fs at t=%.2f\n", jumpSec, t);
 		}
-		// KEI_NO_PHYSICS_CLAMP=1 restores the pre-fix behaviour (for A/B).
-		if (!getenv("KEI_NO_PHYSICS_CLAMP"))
+		// LWF_NO_PHYSICS_CLAMP=1 restores the pre-fix behaviour (for A/B).
+		if (!getenv("LWF_NO_PHYSICS_CLAMP"))
 			clampPhysicsCatchUp(g);
 		const auto worldStart = std::chrono::steady_clock::now();
 		g.skeleton->updateWorldTransform(Physics_Update);
@@ -2982,17 +2982,17 @@ int main(int argc, char** argv) {
 		usage(argv[0]);
 		return 1;
 	}
-	if (getenv("KEI_DRAW_HITBOX"))
+	if (getenv("LWF_DRAW_HITBOX"))
 		g.drawHitbox = true;
-	if (getenv("KEI_NO_CURSOR_FX"))
+	if (getenv("LWF_NO_CURSOR_FX"))
 		g.cursorFx = false;
-	if (getenv("KEI_TRACE_FX"))
+	if (getenv("LWF_TRACE_FX"))
 		g.traceFx = true;
-	if (const char* spec = getenv("KEI_LIVE_SCRIPT"))
+	if (const char* spec = getenv("LWF_LIVE_SCRIPT"))
 		gLiveScript = parseShotScript(spec);
-	if (getenv("KEI_TRACE_INPUT"))
+	if (getenv("LWF_TRACE_INPUT"))
 		g.traceInput = true;
-	if (const char* v = getenv("KEI_TRACE_FRAME")) {
+	if (const char* v = getenv("LWF_TRACE_FRAME")) {
 		g.traceFrame = true;
 		const double ms = atof(v);
 		if (ms > 1.0)
@@ -3015,8 +3015,8 @@ int main(int argc, char** argv) {
 		if (!profilePath.empty())
 			candidates.push_back(profilePath);
 		else {
-			candidates.push_back(itemDir + "/kei-profile.conf");
-			candidates.push_back(home + "/.config/kei-wallpaper-host/profiles/" + id + ".conf");
+			candidates.push_back(itemDir + "/wallpaper-profile.conf");
+			candidates.push_back(home + "/.config/linux-wallpaper-fork/profiles/" + id + ".conf");
 		}
 		bool loaded = false;
 		float scale = g.modelScale;
@@ -3038,7 +3038,7 @@ int main(int argc, char** argv) {
 							 "(run scripts/make-profile.py on the item to generate one)\n", id.c_str());
 
 		// Hand-tuned zones live here so `make-profile.py` can be re-run at will.
-		const std::string local = home + "/.config/kei-wallpaper-host/profiles/" + id + ".local.conf";
+		const std::string local = home + "/.config/linux-wallpaper-fork/profiles/" + id + ".local.conf";
 		if (loadProfile(g.profile, &scale, local, false)) {
 			if (!scaleFromCli)
 				g.modelScale = scale;
@@ -3054,7 +3054,7 @@ int main(int argc, char** argv) {
 	// Voiceline clips are fire-and-forget players; don't leave zombies behind.
 	signal(SIGCHLD, SIG_IGN);
 	// The BGM player is detached (setsid), so it would outlive us and keep playing
-	// after `pkill kei-wallpaper-host` unless we take it down on the way out.
+	// after `pkill linux-wallpaper-fork` unless we take it down on the way out.
 	struct BgmReaper {
 		static void handle(int sig) {
 			if (g.bgmPid > 0)
@@ -3111,7 +3111,7 @@ int main(int argc, char** argv) {
 
 	g.surface = wl_compositor_create_surface(g.compositor);
 	g.layerSurface = zwlr_layer_shell_v1_get_layer_surface(
-		g.layerShell, g.surface, g.output, ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND, "kei-wallpaper-host");
+		g.layerShell, g.surface, g.output, ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND, "linux-wallpaper-fork");
 	zwlr_layer_surface_v1_set_anchor(g.layerSurface,
 									 ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP | ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM |
 										 ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT | ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT);

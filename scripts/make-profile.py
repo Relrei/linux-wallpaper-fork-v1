@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate a kei-wallpaper-host profile from a Wallpaper Engine Spine item.
+"""Generate a linux-wallpaper-fork profile from a Wallpaper Engine Spine item.
 
 Every Spine-based Workshop item ships its own `js/main.js` with its own HITBOX
 rects, CHARACTER id and AUDIO_DETAIL table, so the per-item data the host needs
@@ -9,7 +9,7 @@ is already on disk — reading it beats transcribing it by hand.
     make-profile.py <workshop id> ...  # only these ids
     make-profile.py --stdout ID     # print instead of writing
 
-Profiles are written to ~/.config/kei-wallpaper-host/profiles/<id>.conf, which is
+Profiles are written to ~/.config/linux-wallpaper-fork/profiles/<id>.conf, which is
 where the host looks them up by workshop id.
 """
 
@@ -23,7 +23,7 @@ import sys
 from pathlib import Path
 
 WORKSHOP = Path.home() / ".steam/steam/steamapps/workshop/content/431960"
-OUT_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "kei-wallpaper-host/profiles"
+OUT_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "linux-wallpaper-fork/profiles"
 
 # Gesture -> (profile key, track 1 animation, track 2 animation). The reference
 # JS hardcodes these names; a differently-rigged item can still be fixed up by
@@ -241,7 +241,7 @@ def main() -> int:
         print(f"wrote {dest}  ({name})")
         written += 1
     if written:
-        print(f"\nrun with:  kei-wallpaper-host --assets <item>/assets/4k", file=sys.stderr)
+        print(f"\nrun with:  linux-wallpaper-fork --assets <item>/assets/4k", file=sys.stderr)
     return 0
 
 

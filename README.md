@@ -1,4 +1,4 @@
-# nle-wallpaper-host
+# linux-wallpaper-fork v1
 
 An interactive Spine wallpaper host for `wlr-layer-shell` compositors. No CEF,
 no browser: it reads the wallpaper's `.skel`/`.atlas` and draws them directly.
@@ -35,7 +35,7 @@ do not.
 ## Build
 
 ```bash
-git clone <this repo> nle-wallpaper-host && cd nle-wallpaper-host
+git clone <this repo> linux-wallpaper-fork && cd linux-wallpaper-fork
 ./scripts/fetch-third-party.sh     # clones the Spine Runtimes, applies patches
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSPINE_SET_COMPILER_FLAGS=OFF
 cmake --build build -j"$(nproc)"
@@ -48,16 +48,16 @@ builds on. If the patches stop applying, the pin moved.
 ## Run
 
 ```bash
-./scripts/start-kei-wallpaper.sh DP-1
+./scripts/start-wallpaper.sh DP-1
 # or
-./build/nle-wallpaper-host --output DP-1
+./build/linux-wallpaper-fork --output DP-1
 ```
 
 Extra host flags pass through after the output name:
 
 ```bash
-./scripts/start-kei-wallpaper.sh DP-1 --hitbox-debug
-./scripts/start-kei-wallpaper.sh DP-1 --voice-volume 0.5
+./scripts/start-wallpaper.sh DP-1 --hitbox-debug
+./scripts/start-wallpaper.sh DP-1 --voice-volume 0.5
 ```
 
 `--output` resolves the compositor's `wl_output.name` (`DP-1`, `HDMI-A-1`,
@@ -66,7 +66,7 @@ etc.), so one host can run independently on each connected display.
 Fallback to patched LWE:
 
 ```bash
-WALLPAPER_MODE=lwe ./scripts/start-kei-wallpaper.sh DP-1
+WALLPAPER_MODE=lwe ./scripts/start-wallpaper.sh DP-1
 ```
 
 ## Other wallpapers (profiles)
@@ -77,15 +77,15 @@ names, voiceline timings, BGM file, design space, scale) lives in a profile.
 ```bash
 python3 scripts/make-profile.py            # all Spine items in the workshop dir
 python3 scripts/make-profile.py --stdout <workshop id>
-KEI_WALLPAPER=<workshop id> scripts/start-kei-wallpaper.sh DP-1
+LWF_WALLPAPER=<workshop id> scripts/start-wallpaper.sh DP-1
 ```
 
 `make-profile.py` reads each item's own `js/main.js` — `HITBOX`, `CHARACTER`,
 `AUDIO_DETAIL`, `bgmfile` — and probes the `.skel` for the animation names, so a
 character that has never been run gets a profile without anything transcribed by
-hand. Output: `~/.config/nle-wallpaper-host/profiles/<workshop id>.conf`, which the
+hand. Output: `~/.config/linux-wallpaper-fork/profiles/<workshop id>.conf`, which the
 host finds from the `--assets` path (`--profile FILE` overrides, and
-`<item>/kei-profile.conf` is checked first for a hand-tuned one).
+`<item>/wallpaper-profile.conf` is checked first for a hand-tuned one).
 
 `<id>.local.conf` next to it is an **overlay**: it merges on top of the generated
 profile, so hand-tuned zones survive re-running the generator. This is where
@@ -102,7 +102,7 @@ clickable** — the built-in defaults are empty on purpose, so the host never
 applies one item's hit zones to another.
 
 Format is `key=value`, `#` comments, repeated `voice.line=TOTAL START1 START2`
-per line (in order). Run with `KEI_TRACE_INPUT=1` to see which profile loaded.
+per line (in order). Run with `LWF_TRACE_INPUT=1` to see which profile loaded.
 
 ## Interaction
 
@@ -132,8 +132,8 @@ at 500; pinch ends at 830, voiceline starts at 870). A press there fell through 
 eye tracking, so the hit test runs a second pass with a 45-unit grace margin in
 the same priority order. Without it roughly one press in three lands on nothing.
 
-`--hitbox-debug` (or `KEI_DRAW_HITBOX=1`) draws them — it works in `--shot` too,
-so you can check placement without touching the desktop. `KEI_TRACE_INPUT=1`
+`--hitbox-debug` (or `LWF_DRAW_HITBOX=1`) draws them — it works in `--shot` too,
+so you can check placement without touching the desktop. `LWF_TRACE_INPUT=1`
 logs every press/release with its design-space coords and whether it was ignored,
 which is the fastest way to tell "the zone is wrong" from "the click never arrived".
 
@@ -147,7 +147,7 @@ Two gesture details that upstream gets wrong for a real pointer:
   finished and started immediately when it has.
 - **Presses are not gated.** Upstream's `acceptingClick` plus its 500ms settle
   timer plus the whole-voiceline lockout (11–16s) swallowed 42% of real presses,
-  measured with `KEI_TRACE_INPUT=1`. The only gate left is an 80ms debounce
+  measured with `LWF_TRACE_INPUT=1`. The only gate left is an 80ms debounce
   against a doubled press event; anything else replaces the running gesture, and a
   press during a voiceline cuts the line off (its forked players are killed).
 - **A cut-off voiceline does not consume its index.** Upstream advances
@@ -190,20 +190,20 @@ Two gesture details that upstream gets wrong for a real pointer:
 ### Replaying a gesture offscreen
 
 Reasoning about which Spine calls a gesture makes is how interaction bugs survive;
-replay it instead. `KEI_SHOT_SCRIPT` feeds events through the *live*
+replay it instead. `LWF_SHOT_SCRIPT` feeds events through the *live*
 `pressedMouse`/`movedMouse`/`releasedMouse` and `updateInteraction`, and
-`KEI_SHOT_SERIES` writes the whole timeline in one process (~1s for 50 frames).
+`LWF_SHOT_SERIES` writes the whole timeline in one process (~1s for 50 frames).
 
 ```bash
-KEI_SHOT_SERIES=/tmp/pat KEI_SHOT_FPS=12 \
-KEI_SHOT_SCRIPT="0.2:press:590,100;0.6:move:610,120;1.7:release" \
-  ./build/nle-wallpaper-host --shot /tmp/pat/x.ppm --size 960x540 --shot-time 4.5
+LWF_SHOT_SERIES=/tmp/pat LWF_SHOT_FPS=12 \
+LWF_SHOT_SCRIPT="0.2:press:590,100;0.6:move:610,120;1.7:release" \
+  ./build/linux-wallpaper-fork --shot /tmp/pat/x.ppm --size 960x540 --shot-time 4.5
 ```
 
 Events are `TIME:press:X,Y`, `TIME:move:X,Y`, `TIME:release`, `TIME:anim:TRACK,NAME`
 (`empty` clears a track); X/Y are screen pixels **for the shot size**, so take a
-`KEI_DRAW_HITBOX=1` shot first to pick them, and check the printed `mode=` is the
-gesture you meant. `KEI_SHOT_ANIM=Pinch_02_M` still sets a single pose directly.
+`LWF_DRAW_HITBOX=1` shot first to pick them, and check the printed `mode=` is the
+gesture you meant. `LWF_SHOT_ANIM=Pinch_02_M` still sets a single pose directly.
 
 Track 0 (`Idle_01`, 13.3s) keeps running underneath, so compare two shots taken at
 the same `--shot-time` or the idle drift will swamp the difference:
@@ -220,16 +220,16 @@ Renders one frame to an FBO and dumps a PPM. Nothing appears on any monitor, so
 you can A/B the render even when the wallpaper is covered by windows.
 
 ```bash
-./build/nle-wallpaper-host --shot /tmp/kei.ppm --size 3440x1440 --shot-time 2.0
-magick /tmp/kei.ppm /tmp/kei.png
+./build/linux-wallpaper-fork --shot /tmp/shot.ppm --size 3440x1440 --shot-time 2.0
+magick /tmp/shot.ppm /tmp/shot.png
 ```
 
 Debug env vars:
 
-- `KEI_DEBUG_BLEND=1` — one-shot census of the first frame: per-command blend
+- `LWF_DEBUG_BLEND=1` — one-shot census of the first frame: per-command blend
   mode, texture id, vertex colors, geometry bbox. This is how you tell a camera
   bug from a blending bug.
-- `KEI_FORCE_NORMAL_BLEND=1` — collapse every slot to Normal blending
+- `LWF_FORCE_NORMAL_BLEND=1` — collapse every slot to Normal blending
   (reproduces an old regression; useful as an A/B).
 
 ## Assets
@@ -237,8 +237,8 @@ Debug env vars:
 `--assets DIR` is required — there is no default, and no item ships with this
 repository. `DIR` is a resolution folder inside a Workshop item you own, e.g.
 `~/.steam/steam/steamapps/workshop/content/431960/<item id>/assets/4k`.
-`scripts/start-kei-wallpaper.sh` builds this path from `KEI_WALLPAPER` /
-`KEI_ASSETS` for you.
+`scripts/start-wallpaper.sh` builds this path from `LWF_WALLPAPER` /
+`LWF_ASSETS` for you.
 
 ## Render contract — must match `js/main.js` + spine-webgl 4.2
 
@@ -269,9 +269,9 @@ Verified against the CEF render: mean RGB / contrast / saturation agree within
   in-process and subtitles are not ported. BGM is off despite `project.json`
   saying `bgmvolume: 20` — enable with `--bgm-volume 0.2`. The BGM player is
   respawned when it exits (that is the loop) and killed on SIGTERM, otherwise
-  `pkill nle-wallpaper-host` would leave the music playing.
-- `pgrep -x nle-wallpaper-host` never matches: `/proc/<pid>/comm` truncates to
-  15 chars (`nle-wallpaper-h`). Match `-f /nle-wallpaper-host` instead.
+  `pkill linux-wallpaper-fork` would leave the music playing.
+- `pgrep -x linux-wallpaper-fork` never matches: `/proc/<pid>/comm` truncates to
+  15 chars (`linux-wallpaper`). Match `-f /linux-wallpaper-fork` instead.
 - The GUI (`~/simple-linux-wallpaperengine-gui`) has a periodic backend restart
   and a restore-on-start, both of which used to relaunch the CEF wallpaper on top
   of this host. It now skips automatic launches while this host is alive, and

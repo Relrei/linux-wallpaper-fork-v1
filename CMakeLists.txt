@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(nle-wallpaper-host LANGUAGES C CXX)
+project(linux-wallpaper-fork LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -27,17 +27,17 @@ target_include_directories(spine-gl PUBLIC
 target_compile_options(spine-gl PRIVATE -Wall -Wextra -Wno-unused-parameter)
 target_link_libraries(spine-gl PUBLIC spine-cpp spine-cpp-lite GLEW::GLEW OpenGL::GL)
 
-add_executable(nle-wallpaper-host
+add_executable(linux-wallpaper-fork
   src/main.cpp
   src/xdg-shell-protocol.c
   src/wlr-layer-shell-unstable-v1-protocol.c
 )
-target_include_directories(nle-wallpaper-host PRIVATE
+target_include_directories(linux-wallpaper-fork PRIVATE
   ${CMAKE_SOURCE_DIR}/src
   ${WAYLAND_INCLUDE_DIRS}
 )
-target_compile_options(nle-wallpaper-host PRIVATE -Wall -Wextra -Wno-unused-parameter ${WAYLAND_CFLAGS_OTHER})
-target_link_libraries(nle-wallpaper-host PRIVATE
+target_compile_options(linux-wallpaper-fork PRIVATE -Wall -Wextra -Wno-unused-parameter ${WAYLAND_CFLAGS_OTHER})
+target_link_libraries(linux-wallpaper-fork PRIVATE
   spine-gl
   spine-cpp
   spine-cpp-lite
@@ -48,10 +48,10 @@ target_link_libraries(nle-wallpaper-host PRIVATE
 )
 
 # Keep the previous build path as a compatibility copy for existing scripts.
-add_custom_command(TARGET nle-wallpaper-host POST_BUILD
+add_custom_command(TARGET linux-wallpaper-fork POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
-          $<TARGET_FILE:nle-wallpaper-host>
-          ${CMAKE_BINARY_DIR}/kei-wallpaper-host
+          $<TARGET_FILE:linux-wallpaper-fork>
+          ${CMAKE_BINARY_DIR}/linux-wallpaper-fork
 )
 
-install(TARGETS nle-wallpaper-host RUNTIME DESTINATION bin)
+install(TARGETS linux-wallpaper-fork RUNTIME DESTINATION bin)
