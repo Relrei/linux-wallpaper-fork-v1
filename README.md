@@ -21,6 +21,17 @@ Measured here: **~100 present fps**, ~10–12% CPU, ~280MB RSS, full panel res.
 It also plays voice lines and BGM, which browser-free mobile ports generally
 do not.
 
+
+## Screenshots
+
+Rendered offscreen with `--shot` (no desktop involved). The item shown is a
+Workshop wallpaper the author owns; its artwork belongs to its creator and
+is reproduced here only to illustrate the host.
+
+| idle | `--hitbox-debug` | pat gesture (`LWF_SHOT_SCRIPT`) |
+|---|---|---|
+| ![idle](docs/images/idle.jpg) | ![hitbox](docs/images/hitbox-debug.jpg) | ![pat](docs/images/pat-gesture.jpg) |
+
 ## Requirements
 
 - A `wlr-layer-shell` compositor (Hyprland, Sway, river, …)
