@@ -84,7 +84,7 @@
 +	texture_t tex = texture_load(path.buffer(), gl_filter(page.minFilter, true), gl_filter(page.magFilter, false));
 +	if (!tex)
 +		fprintf(stderr, "atlas load FAILED: %s\n", path.buffer());
-+	else if (getenv("KEI_DEBUG_BLEND"))
++	else if (getenv("LWF_DEBUG_BLEND"))
 +		fprintf(stderr, "atlas page tex=%u min=%d mag=%d %dx%d %s\n", tex, (int) page.minFilter,
 +				(int) page.magFilter, page.width, page.height, path.buffer());
 +	page.texture = (void *) (uintptr_t) tex;
@@ -113,10 +113,10 @@
  
  	RenderCommand *command = renderer->renderer->render(*skeleton);
 +
-+	// KEI_DEBUG_BLEND=1 dumps a one-shot census of what the skeleton actually asks
++	// LWF_DEBUG_BLEND=1 dumps a one-shot census of what the skeleton actually asks
 +	// for, so blend/tint regressions can be diagnosed without guessing.
 +	static bool censusDone = false;
-+	if (!censusDone && getenv("KEI_DEBUG_BLEND")) {
++	if (!censusDone && getenv("LWF_DEBUG_BLEND")) {
 +		censusDone = true;
 +		int perMode[4] = {0, 0, 0, 0};
 +		int tinted = 0, total = 0;
@@ -165,8 +165,8 @@
 +		// Per-slot blend mode, same mapping as spine-webgl's PolygonBatcher.setBlendMode.
 +		// Forcing every slot to Normal turns the Multiply shading layers into a milky
 +		// wash over the whole scene.
-+		// KEI_FORCE_NORMAL_BLEND=1 reproduces the old broken path for A/B shots.
-+		static const bool forceNormal = getenv("KEI_FORCE_NORMAL_BLEND") != nullptr;
++		// LWF_FORCE_NORMAL_BLEND=1 reproduces the old broken path for A/B shots.
++		static const bool forceNormal = getenv("LWF_FORCE_NORMAL_BLEND") != nullptr;
 +		blend_mode_t blend_mode = blend_modes[forceNormal ? 0 : command->blendMode];
 +		const GLenum source_color = premultipliedAlpha ? (GLenum) blend_mode.source_color_pma
 +													   : (GLenum) blend_mode.source_color;
