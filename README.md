@@ -9,6 +9,10 @@ it is an independent implementation that reads the same on-disk layout.
 It ships no wallpaper content, and no Spine Runtimes. Read
 [NOTICE.md](NOTICE.md) before building or redistributing.
 
+Reading the source: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — module map,
+`LWF_*` variables, and how to run the two gates.
+Writing or fixing a profile: [docs/PROFILE_FORMAT.md](docs/PROFILE_FORMAT.md).
+
 ## Why
 
 Browser-hosted wallpapers pay for a full-frame BGRA copy from CPU to GPU on
