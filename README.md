@@ -28,9 +28,19 @@ Rendered offscreen with `--shot` (no desktop involved). The item shown is a
 Workshop wallpaper the author owns; its artwork belongs to its creator and
 is reproduced here only to illustrate the host.
 
-| idle | `--hitbox-debug` | pat gesture (`LWF_SHOT_SCRIPT`) |
-|---|---|---|
-| ![idle](docs/images/idle.jpg) | ![hitbox](docs/images/hitbox-debug.jpg) | ![pat](docs/images/pat-gesture.jpg) |
+On a real desktop (Hyprland, 3440x1440, waybar on top — the host sits on the
+`background` layer so the bar and windows stack over it):
+
+![desktop](docs/images/desktop-hyprland.jpg)
+
+Pat gesture, replayed offscreen through the live input path
+(`LWF_SHOT_SERIES` + `LWF_SHOT_SCRIPT`, 24 fps — [mp4](docs/images/pat-gesture.mp4)):
+
+![pat gesture](docs/images/pat-gesture.gif)
+
+| idle | `--hitbox-debug` |
+|---|---|
+| ![idle](docs/images/idle.jpg) | ![hitbox](docs/images/hitbox-debug.jpg) |
 
 ## Requirements
 
