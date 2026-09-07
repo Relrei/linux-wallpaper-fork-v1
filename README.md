@@ -283,3 +283,11 @@ Verified against the CEF render: mean RGB / contrast / saturation agree within
   `NDEBUG`), so every play goes through a `findAnimation` guard. Items that
   lack the `_A` eye variants make upstream's `HAS_A.eye = false` free here.
 - `eglSwapInterval(0)` + `wl_surface_frame` before swap is required to avoid the 50fps half-refresh trap.
+
+## Credits
+
+- Design, integration and testing: **Relrei**
+- Implementation assistance: **Claude Code** (Anthropic) — the renderer, the
+  Wayland/EGL surface, the interaction model and the offscreen shot tooling
+  were written in pair-programming sessions with it.
+- Spine Runtimes: Esoteric Software (not bundled — see NOTICE.md).
