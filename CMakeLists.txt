@@ -29,6 +29,12 @@ target_link_libraries(spine-gl PUBLIC spine-cpp spine-cpp-lite GLEW::GLEW OpenGL
 
 add_executable(linux-wallpaper-fork
   src/main.cpp
+  src/profile.cpp
+  src/wayland.cpp
+  src/renderer.cpp
+  src/interaction.cpp
+  src/audio.cpp
+  src/shot.cpp
   src/xdg-shell-protocol.c
   src/wlr-layer-shell-unstable-v1-protocol.c
 )
