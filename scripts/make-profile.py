@@ -97,10 +97,34 @@ def skeleton_blob(item: Path) -> bytes:
     Spine writes its string table without separators, so tokenising the binary
     merges neighbouring names ("Pat_01_M" + "PatEnd_01_A") and makes exact-match
     lookups miss. A substring test is enough to tell a real name from a guess.
+
+    Both on-disk layouts are searched. Only matching `assets/*/*.skel` meant a
+    single-resolution item returned b"", and `has_anim` then answered True for
+    every name it was asked about -- the generated profile claimed animations
+    the rig does not have, which the host can only report at load time.
     """
-    for skel in item.glob("assets/*/*.skel"):
-        return skel.read_bytes()
+    for pattern in ("assets/*/*.skel", "assets/*.skel"):
+        for skel in sorted(item.glob(pattern)):
+            return skel.read_bytes()
     return b""
+
+
+def skeleton_version(item: Path) -> str:
+    """The Spine version the .skel was exported from, or "" if unreadable.
+
+    The header holds a hash and a version string, but not at the same offsets in
+    every generation (4.x writes an 8-byte hash, 3.8 writes it length-prefixed),
+    so match the first "N.N.N" in the header rather than counting bytes. The
+    runtime refuses a skeleton whose major.minor differs from its own, which is
+    what separates "this item is unsupported" from "this host is broken".
+    """
+    for pattern in ("assets/*/*.skel", "assets/*.skel"):
+        for skel in sorted(item.glob(pattern)):
+            with skel.open("rb") as fh:
+                head = fh.read(128)
+            m = re.search(rb"\d+\.\d+\.\d+", head)
+            return m.group(0).decode("ascii") if m else ""
+    return ""
 
 
 def profile_for(item: Path) -> str | None:

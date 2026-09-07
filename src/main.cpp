@@ -1,5 +1,6 @@
 // Native Spine wallpaper host — Spine 4.2 + wlr-layer-shell, no CEF.
 #include "spine-glfw.h"
+#include <spine/Version.h>
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
@@ -19,6 +20,7 @@ extern "C" {
 #undef namespace
 #undef static
 
+#include <ctype.h>
 #include <dirent.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -31,6 +33,7 @@ extern "C" {
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <utility>
 #include <vector>
 
 using namespace spine;
@@ -1619,6 +1622,93 @@ static std::string findSkeletonBase(const std::string& assetDir) {
 	return base;
 }
 
+// One stderr block saying how much of the profile this skeleton can actually
+// honour. A profile is generated from the item's own js/main.js, but nothing
+// guarantees the rig has the animations that JS names, and a key that is simply
+// absent means "this item has no such gesture". Both are legitimate and both are
+// invisible at runtime, because every play goes through findAnimation and a miss
+// leaves the track untouched. Printing them is what turns "the character does
+// not react" from a mystery into a line of output.
+//
+// The wording is deliberately greppable: scripts/verify-generic.sh counts
+// "not in skeleton" across every installed item.
+static void reportProfileCoverage(App& a) {
+	const Profile& p = a.profile;
+	// Talk names carry a "%d" line index; probe with the first line.
+	char talk[128] = {0}, talkA[128] = {0};
+	if (!p.talkAnim.empty())
+		std::snprintf(talk, sizeof(talk), p.talkAnim.c_str(), 1);
+	if (!p.talkAnimA.empty())
+		std::snprintf(talkA, sizeof(talkA), p.talkAnimA.c_str(), 1);
+	const std::pair<const char*, std::string> anims[] = {
+		{"idle", p.idleAnim},             {"pat", p.patAnim},
+		{"patEnd", p.patEndAnim},         {"patEndA", p.patEndAnimA},
+		{"pinch", p.pinchAnim},           {"pinchA", p.pinchAnimA},
+		{"pinchEnd", p.pinchEndAnim},     {"pinchEndA", p.pinchEndAnimA},
+		{"look", p.lookAnim},             {"lookA", p.lookAnimA},
+		{"lookEnd", p.lookEndAnim},       {"lookEndA", p.lookEndAnimA},
+		{"handFollow", p.handFollowAnim}, {"handFollowEnd", p.handFollowEndAnim},
+		{"talk", std::string(talk)},      {"talkA", std::string(talkA)},
+	};
+	int present = 0, unset = 0, absent = 0;
+	for (const std::pair<const char*, std::string>& entry : anims) {
+		if (entry.second.empty())
+			++unset;
+		else if (a.skeletonData->findAnimation(entry.second.c_str()))
+			++present;
+		else {
+			++absent;
+			std::fprintf(stderr, "profile: %s animation '%s' not in skeleton\n",
+						 entry.first, entry.second.c_str());
+		}
+	}
+	std::fprintf(stderr, "profile: animations %d present, %d unset, %d not in skeleton\n",
+				 present, unset, absent);
+
+	const Hitbox* zones[] = {&p.headpat, &p.pinch, &p.voiceline, &p.handFollow};
+	std::string enabled;
+	int live = 0;
+	for (const Hitbox* z : zones) {
+		if (!z->enabled())
+			continue;
+		++live;
+		enabled += (enabled.empty() ? "" : ", ");
+		enabled += z->name;
+	}
+	if (live == 0)
+		std::fprintf(stderr, "profile: no hit zones -- nothing on this item is clickable\n");
+	else
+		std::fprintf(stderr, "profile: hit zones %d of 4 (%s)\n", live, enabled.c_str());
+}
+
+// The Spine version a .skel was exported from, or "" if the header is not
+// recognisable. The runtime only accepts a skeleton whose major.minor matches
+// its own, and its own diagnostic reads the version at a fixed offset that
+// moved between generations -- against a 3.8 file it prints binary garbage. The
+// header always contains the version as plain "N.N.N" text, so scan for that.
+static std::string skeletonVersion(const std::string& skelPath) {
+	FILE* f = fopen(skelPath.c_str(), "rb");
+	if (!f)
+		return std::string();
+	unsigned char head[128] = {0};
+	const size_t n = fread(head, 1, sizeof(head), f);
+	fclose(f);
+	for (size_t i = 0; i + 4 < n; ++i) {
+		if (!isdigit(head[i]) || head[i + 1] != '.')
+			continue;
+		size_t j = i;
+		int dots = 0;
+		while (j < n && (isdigit(head[j]) || head[j] == '.')) {
+			if (head[j] == '.')
+				++dots;
+			++j;
+		}
+		if (dots >= 2)
+			return std::string(reinterpret_cast<const char*>(head + i), j - i);
+	}
+	return std::string();
+}
+
 static bool loadSpine(App& a, const std::string& assetDir) {
 	// The reference renderer leaves Skeleton.yDown at false and uses a plain
 	// y-up ortho2d. Flipping it here put the whole skeleton at negative y, i.e.
@@ -1640,7 +1730,21 @@ static bool loadSpine(App& a, const std::string& assetDir) {
 	binary.setScale(1.f);
 	a.skeletonData = binary.readSkeletonDataFile(skelPath.c_str());
 	if (!a.skeletonData) {
-		std::fprintf(stderr, "failed to load skel: %s\n", skelPath.c_str());
+		// The usual cause is generation drift: the item was exported from an
+		// older Spine than this build links. Say so in those words -- "failed to
+		// load skel" alone reads as a bug in the host.
+		const std::string ver = skeletonVersion(skelPath);
+		if (!ver.empty() && ver.compare(0, strlen(SPINE_VERSION_STRING), SPINE_VERSION_STRING) != 0)
+			std::fprintf(stderr,
+						 "failed to load skel: %s\n"
+						 "  exported from Spine %s; this build links spine-cpp " SPINE_VERSION_STRING
+						 ". Spine skeletons are not readable across generations --\n"
+						 "  re-export the item from Spine " SPINE_VERSION_STRING
+						 ", or build a host against the matching runtime.\n",
+						 skelPath.c_str(), ver.c_str());
+		else
+			std::fprintf(stderr, "failed to load skel: %s: %s\n", skelPath.c_str(),
+						 binary.getError().buffer());
 		return false;
 	}
 	a.skeleton = new Skeleton(a.skeletonData);
@@ -1686,8 +1790,7 @@ static bool loadSpine(App& a, const std::string& assetDir) {
 	a.animState = new AnimationState(a.animData);
 	if (a.skeletonData->findAnimation(a.profile.idleAnim.c_str()))
 		a.animState->setAnimation(0, a.profile.idleAnim.c_str(), true);
-	else
-		std::fprintf(stderr, "profile: idle animation '%s' not in skeleton\n", a.profile.idleAnim.c_str());
+	reportProfileCoverage(a);
 	a.touchEye = a.skeleton->findBone(a.profile.eyeBone.c_str());
 	a.touchPoint = a.skeleton->findBone(a.profile.pointBone.c_str());
 	a.handFollowTarget = a.profile.handFollowBone.empty()
@@ -3004,11 +3107,33 @@ int main(int argc, char** argv) {
 	// the empty built-in profile applies: the item renders but does not react.
 	{
 		const std::string home = getenv("HOME") ? getenv("HOME") : "";
+		// Workshop items are not all shaped the same: most ship
+		// assets/<res>/x.skel, some ship assets/x.skel. Walking up a fixed two
+		// levels turned the second layout into the appid directory, so the
+		// profile was looked up under the id "431960" and never found. Climb
+		// until project.json appears instead -- that file marks the item root in
+		// every layout -- and keep the old two-level guess as the fallback.
 		std::string itemDir = assets;
-		for (int up = 0; up < 2; ++up) {
-			const size_t cut = itemDir.find_last_of('/');
-			if (cut != std::string::npos)
-				itemDir.erase(cut);
+		std::string probe = assets;
+		bool foundItem = false;
+		for (int up = 0; up < 4 && !probe.empty(); ++up) {
+			const size_t cut = probe.find_last_of('/');
+			if (cut == std::string::npos || cut == 0)
+				break;
+			probe.erase(cut);
+			if (access((probe + "/project.json").c_str(), R_OK) == 0) {
+				itemDir = probe;
+				foundItem = true;
+				break;
+			}
+		}
+		if (!foundItem) {
+			itemDir = assets;
+			for (int up = 0; up < 2; ++up) {
+				const size_t cut = itemDir.find_last_of('/');
+				if (cut != std::string::npos)
+					itemDir.erase(cut);
+			}
 		}
 		std::string id = itemDir.substr(itemDir.find_last_of('/') + 1);
 		std::vector<std::string> candidates;
@@ -3045,11 +3170,23 @@ int main(int argc, char** argv) {
 			std::fprintf(stderr, "profile: overlay %s\n", local.c_str());
 		}
 	}
-	// assets/<res>/ sits next to assets/audio/ in every workshop item.
+	// assets/audio/ is a sibling of assets/<res>/ in the common layout and a
+	// child of assets/ in the single-resolution one. Probe rather than assume:
+	// guessing wrong is silent, because voicelines only fail when clicked.
 	{
+		std::vector<std::string> tries;
+		tries.push_back(assets + "/audio");
 		const size_t cut = assets.find_last_of('/');
 		if (cut != std::string::npos)
-			g.audioDir = assets.substr(0, cut) + "/audio";
+			tries.push_back(assets.substr(0, cut) + "/audio");
+		for (const std::string& dir : tries) {
+			if (access(dir.c_str(), R_OK | X_OK) == 0) {
+				g.audioDir = dir;
+				break;
+			}
+		}
+		if (g.audioDir.empty() && !tries.empty())
+			g.audioDir = tries.back();
 	}
 	// Voiceline clips are fire-and-forget players; don't leave zombies behind.
 	signal(SIGCHLD, SIG_IGN);

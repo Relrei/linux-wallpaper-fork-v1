@@ -199,6 +199,33 @@ applies one item's hit zones to another.
 Format is `key=value`, `#` comments, repeated `voice.line=TOTAL START1 START2`
 per line (in order). Run with `LWF_TRACE_INPUT=1` to see which profile loaded.
 
+### Is it actually generic?
+
+`scripts/verify-generic.sh` renders every profiled item on the machine offscreen
+and reports whether it stood up, how much of the frame it painted, how many hit
+zones its profile enables, and how many profile entries its skeleton does not
+have. Measured here, 15 profiles / 14 supported items:
+
+```
+items run 14, skipped 1, unsupported skeleton 1, failed 0
+items with 0 hit zones (render but are inert): 0
+items with a profile entry the skeleton lacks: 0
+PASS: all 14 supported item(s) rendered
+```
+
+Two things it turned up that a single-item test cannot:
+
+- **Not every item is `assets/<res>/`.** Single-resolution items put the `.skel`
+  straight into `assets/`. The item directory is now found by climbing to the
+  nearest `project.json` instead of assuming a fixed depth — before that the
+  profile for such an item was looked up under the id `431960` and never found.
+- **Not every item is Spine 4.2.** spine-cpp reads only its own generation, so a
+  3.8-era item cannot load. That is now said in those words instead of
+  `failed to load skel`, and `list-spine-items.py` prints each item's version.
+
+Neither is fixed by special-casing an item; the numbers above are the evidence
+for the claim that nothing in `src/` knows which character it is drawing.
+
 ## Interaction
 
 The gesture model mirrors what a web-hosted item does in its own `js/main.js`

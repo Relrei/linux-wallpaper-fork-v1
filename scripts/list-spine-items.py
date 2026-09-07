@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -58,6 +59,24 @@ def asset_dirs(item: Path) -> list[Path]:
     return sorted(found, key=key, reverse=True)
 
 
+# What this build of the host links. A skeleton is only readable by the runtime
+# generation it was exported from, so this is the line between "unsupported item"
+# and "broken host".
+RUNTIME = "4.2"
+
+
+def skeleton_version(skel: Path) -> str:
+    """The Spine version in the .skel header, or "" if unrecognisable.
+
+    The header layout moved between generations (4.x writes an 8-byte hash,
+    3.8 a length-prefixed one), so match the first "N.N.N" instead of counting.
+    """
+    with skel.open("rb") as fh:
+        head = fh.read(128)
+    m = re.search(rb"\d+\.\d+\.\d+", head)
+    return m.group(0).decode("ascii") if m else ""
+
+
 def project_meta(item: Path) -> tuple[str, str]:
     """(title, type) from project.json; missing fields degrade to the item id."""
     path = item / "project.json"
@@ -76,8 +95,11 @@ def survey(workshop: Path) -> list[dict]:
         title, kind = project_meta(item)
         dirs = asset_dirs(item)
         has_js = (item / "js/main.js").is_file()
+        version = skeleton_version(sorted(dirs[0].glob("*.skel"))[0]) if dirs else ""
         if not dirs:
             reason = "no .skel/.atlas under assets/ (%s item)" % (kind or "unknown")
+        elif version and not version.startswith(RUNTIME + "."):
+            reason = f"Spine {version} skeleton; this host links spine-cpp {RUNTIME}"
         elif not has_js:
             # Renders, but every hit zone and animation name would have to be
             # written by hand: make-profile.py reads them out of js/main.js.
@@ -91,6 +113,8 @@ def survey(workshop: Path) -> list[dict]:
             "spine": bool(dirs),
             "assets": [str(d) for d in dirs],
             "resolutions": [d.name for d in dirs],
+            "spine_version": version,
+            "runnable": bool(dirs) and (not version or version.startswith(RUNTIME + ".")),
             "profile": str(PROFILE_DIR / f"{item.name}.conf") if (PROFILE_DIR / f"{item.name}.conf").is_file() else "",
             "overlay": str(PROFILE_DIR / f"{item.name}.local.conf") if (PROFILE_DIR / f"{item.name}.local.conf").is_file() else "",
             "reason": reason,
@@ -123,12 +147,18 @@ def main() -> int:
         return 1
 
     width = max(len(r["title"]) for r in shown)
-    print(f"{'id':<11} {'title':<{width}} {'res':<12} {'profile':<9} note")
+    print(f"{'id':<11} {'title':<{width}} {'res':<12} {'spine':<7} {'profile':<9} note")
     for r in shown:
         res = ",".join(r["resolutions"]) if r["spine"] else "-"
         prof = "yes" + ("+local" if r["overlay"] else "") if r["profile"] else "-"
         note = r["reason"] or ""
-        print(f"{r['id']:<11} {r['title']:<{width}} {res:<12} {prof:<9} {note}")
+        ver = r["spine_version"] or "-"
+        print(f"{r['id']:<11} {r['title']:<{width}} {res:<12} {ver:<7} {prof:<9} {note}")
+
+    old_gen = [r for r in shown if r["spine"] and not r["runnable"]]
+    if old_gen:
+        print(f"\n{len(old_gen)} item(s) exported from a Spine generation this host cannot read "
+              f"(runtime {RUNTIME}): " + ", ".join(r["id"] for r in old_gen), file=sys.stderr)
 
     missing = [r for r in shown if r["spine"] and not r["profile"]]
     if missing:

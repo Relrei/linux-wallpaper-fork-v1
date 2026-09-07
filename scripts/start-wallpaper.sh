@@ -24,7 +24,16 @@ if [[ -z "$WALLPAPER" ]]; then
 fi
 RES="${LWF_RESOLUTION:-4k}"
 WORKSHOP="$HOME/.steam/steam/steamapps/workshop/content/431960"
-ASSETS="${LWF_ASSETS:-$WORKSHOP/$WALLPAPER/assets/$RES}"
+# Most items ship assets/2k,4k,8k; single-resolution ones put the .skel straight
+# into assets/. Fall back rather than hand the host a directory that is not there.
+ASSETS="${LWF_ASSETS:-}"
+if [[ -z "$ASSETS" ]]; then
+  for cand in "$WORKSHOP/$WALLPAPER/assets/$RES" "$WORKSHOP/$WALLPAPER/assets" \
+              "$WORKSHOP/$WALLPAPER"/assets/*/; do
+    if compgen -G "${cand%/}/*.atlas" >/dev/null 2>&1; then ASSETS="${cand%/}"; break; fi
+  done
+  ASSETS="${ASSETS:-$WORKSHOP/$WALLPAPER/assets/$RES}"
+fi
 PROFILE="${XDG_CONFIG_HOME:-$HOME/.config}/linux-wallpaper-fork/profiles/$WALLPAPER.conf"
 
 # Interaction data (hitboxes, animation names, voiceline timings) is read from the
